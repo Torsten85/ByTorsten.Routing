@@ -1,0 +1,13 @@
+{
+    "name": "bytorsten/routing",
+    "type": "typo3-flow-package",
+    "description": "Add special routing features for TYPO3.Neos",
+    "require": {
+        "typo3/flow": "*"
+    },
+    "autoload": {
+        "psr-0": {
+            "ByTorsten\\Routing": "Classes"
+        }
+    }
+}
