@@ -62,7 +62,10 @@ class DimensionDecisionManager {
      * @return array|NULL
      */
     public function decide($requestPath) {
-        if (strpos($requestPath, '@') == FALSE && $this->decisionMaker) {
+        if ($this->decisionMaker) {
+            if (method_exists($this->decisionMaker, 'setPath')) {
+                $this->decisionMaker->setPath($requestPath);
+            }
             return $this->decisionMaker->getDimension($requestPath);
         }
 
@@ -75,6 +78,10 @@ class DimensionDecisionManager {
      */
     public function identify(Request $httpRequest) {
         if (strpos($httpRequest->getRelativePath(), '@') === FALSE &&  $this->decisionMaker) {
+            if (method_exists($this->decisionMaker, 'setPath')) {
+                $this->decisionMaker->setPath($httpRequest->getRelativePath());
+            }
+
             return $this->decisionMaker->getUniqueIdentifier($httpRequest);
         }
 
