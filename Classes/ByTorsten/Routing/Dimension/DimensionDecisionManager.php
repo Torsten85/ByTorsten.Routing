@@ -16,9 +16,9 @@ class DimensionDecisionManager {
     protected $objectManager;
 
     /**
-     * @var DimensionDecisionMakerInterface
+     * @var array<AbstractDimensionDecisionMaker>
      */
-    protected $decisionMaker;
+    protected $decisionMakers = array();
 
     /**
      * Constructor.
@@ -33,28 +33,41 @@ class DimensionDecisionManager {
      * @param array $settings
      */
     public function injectSettings(array $settings) {
-        $decisionMakerClassName = $settings['dimension']['dimensionDecisionMaker'];
-        if ($decisionMakerClassName) {
-            $this->createDimensionDecisionMaker($settings['dimension']['dimensionDecisionMaker']);
-        }
+        $this->createDimensionDecisionMakers($settings['dimension']['dimensionDecisionMakers']);
     }
 
     /**
-     * @param string $decisionMakerClassName
+     * @return array
+     */
+    public function getDecisionMakers() {
+        return $this->decisionMakers;
+    }
+
+    /**
+     * @param array $decisionMakerClassNames
      * @return void
      * @throws DecisionMakerNotFoundException
+     * @throws Exception\Exception
      */
-    protected function createDimensionDecisionMaker($decisionMakerClassName) {
-        if (!$this->objectManager->isRegistered($decisionMakerClassName)) {
-            throw new DecisionMakerNotFoundException('No decision maker of type ' . $decisionMakerClassName . ' found!', 1222267935);
-        }
+    protected function createDimensionDecisionMakers($decisionMakerClassNames) {
+        foreach($decisionMakerClassNames as $dimensionName => $decisionMakerClassName) {
+            if (!$this->objectManager->isRegistered($decisionMakerClassName)) {
+                throw new DecisionMakerNotFoundException('No decision maker of type ' . $decisionMakerClassName . ' found!', 1222267935);
+            }
 
-        $decisionMaker = $this->objectManager->get($decisionMakerClassName);
-        if (!($decisionMaker instanceof DimensionDecisionMakerInterface)) {
-            throw new DecisionMakerNotFoundException('The found decision maker class did not implement \ByTorsten\Routing\Dimension\DimensionDecisionMakerInterface', 1222268009);
-        }
+            $decisionMaker = $this->objectManager->get($decisionMakerClassName);
+            if (!($decisionMaker instanceof AbstractDimensionDecisionMaker)) {
+                throw new DecisionMakerNotFoundException('The found decision maker class did not extend \ByTorsten\Routing\Dimension\AbstractDimensionDecisionMaker', 1222268009);
+            }
 
-        $this->decisionMaker = $decisionMaker;
+            $decisionMaker->setDimensionName($dimensionName);
+
+            if (isset($this->decisionMakers[$dimensionName])) {
+                throw new Exception\Exception('Decision Maker for dimension"%s already registered: %s.', $dimensionName, $decisionMakerClassName, 1222268010);
+            }
+
+            $this->decisionMakers[$dimensionName] = $decisionMaker;
+        }
     }
 
     /**
@@ -62,14 +75,18 @@ class DimensionDecisionManager {
      * @return array|NULL
      */
     public function decide($requestPath) {
-        if ($this->decisionMaker) {
-            if (method_exists($this->decisionMaker, 'setPath')) {
-                $this->decisionMaker->setPath($requestPath);
+        $dimensions = array();
+        /** @var AbstractDimensionDecisionMaker $decisionMaker */
+        foreach($this->decisionMakers as $dimensionName => $decisionMaker) {
+            $decisionMaker->setPath($requestPath);
+            $dimension = $decisionMaker->getDimension($requestPath);
+
+            if ($dimension !== NULL) {
+                $dimensions[$dimensionName] = $dimension;
             }
-            return $this->decisionMaker->getDimension($requestPath);
         }
 
-        return NULL;
+        return count($dimensions) > 0 ? $dimensions : NULL;
     }
 
     /**
@@ -77,14 +94,19 @@ class DimensionDecisionManager {
      * @return string|null
      */
     public function identify(Request $httpRequest) {
-        if (strpos($httpRequest->getRelativePath(), '@') === FALSE &&  $this->decisionMaker) {
-            if (method_exists($this->decisionMaker, 'setPath')) {
-                $this->decisionMaker->setPath($httpRequest->getRelativePath());
-            }
+        $requestPath = $httpRequest->getRelativePath();
+        $identities = array();
 
-            return $this->decisionMaker->getUniqueIdentifier($httpRequest);
+        /** @var AbstractDimensionDecisionMaker $decisionMaker */
+        foreach($this->decisionMakers as $dimensionName => $decisionMaker) {
+            $decisionMaker->setPath($requestPath);
+            $identity = $decisionMaker->getUniqueIdentifier();
+
+            if ($identity !== NULL) {
+                $identities[] = sprintf('%s_%s', $dimensionName, $identity);
+            }
         }
 
-        return NULL;
+        return count($identities) > 0 ? implode('_', $identities) : NULL;
     }
 }

@@ -32,6 +32,14 @@ abstract class AbstractDimensionDecisionMaker implements DimensionDecisionMakerI
     }
 
     /**
+     * @param string $dimensionName
+     * @return void
+     */
+    public function setDimensionName($dimensionName) {
+        $this->dimensionName = $dimensionName;
+    }
+
+    /**
      * @return bool
      */
     protected function isBackend() {
@@ -42,8 +50,8 @@ abstract class AbstractDimensionDecisionMaker implements DimensionDecisionMakerI
      * @return array
      */
     protected function getDimensionFromPath() {
-        if ($this->dimensionName !== NULL && preg_match('/;' . $this->dimensionName . '=(.+?)(?:;|\.html|$)/', $this->path, $matches)) {
-            return array($this->dimensionName => explode(',', $matches[1]));
+        if ($this->dimensionName !== NULL && preg_match('/(?:;|&)' . $this->dimensionName . '=(.+?)(?:;|\.html|$)/', $this->path, $matches)) {
+            return explode(',', $matches[1]);
         }
 
         return NULL;
@@ -61,7 +69,7 @@ abstract class AbstractDimensionDecisionMaker implements DimensionDecisionMakerI
 
         $dimension = $this->resolveDimension();
 
-        if (is_string($dimension) && $this->dimensionName !== NULL) {
+        if (is_string($dimension)) {
             $allPresets = $this->contentDimensionPresetSource->getAllPresets();
 
             if (!isset($allPresets[$this->dimensionName])) {
@@ -73,7 +81,7 @@ abstract class AbstractDimensionDecisionMaker implements DimensionDecisionMakerI
                 throw new NoSuchDimensionValueException(sprintf('Could not find a preset for content dimension "%s", preset "%s".', $this->dimensionName, $dimension), 1413389322);
             }
 
-            return array($this->dimensionName => $presets[$dimension]['values']);
+            return $presets[$dimension]['values'];
         }
 
         return NULL;
@@ -88,11 +96,8 @@ abstract class AbstractDimensionDecisionMaker implements DimensionDecisionMakerI
             $dimension = array();
         }
 
-        if ($this->dimensionName && isset($dimension[$this->dimensionName])) {
-            return implode('_', $dimension[$this->dimensionName]);
-        }
 
-        return serialize($dimension);
+        return implode('_', $dimension);
     }
 
     /**
