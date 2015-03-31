@@ -1,6 +1,6 @@
 {
     "name": "bytorsten/routing",
-    "type": "typo3-flow-package",
+    "type": "typo3-flow-plugin",
     "description": "Add special routing features for TYPO3.Neos",
     "require": {
         "typo3/flow": "*"
