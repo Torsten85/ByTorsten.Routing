@@ -2,4 +2,4 @@ ByTorsten:
   Routing:
     dimension:
       dimensionDecisionMakers:
-        #dimensionName: ''
+        language: 'ByTorsten\Routing\Dimension\DecisionMakers\DefaultLanguageDecisionMaker'

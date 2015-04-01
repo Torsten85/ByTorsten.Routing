@@ -22,7 +22,6 @@ class RouterCachingAspect {
      * @return array
      */
     public function getCacheIdentifier(JoinPointInterface $joinPoint) {
-
         $result = $joinPoint->getAdviceChain()->proceed($joinPoint);
 
         $identifier = $this->dimensionDecisionManager->identify($joinPoint->getMethodArgument('httpRequest'));

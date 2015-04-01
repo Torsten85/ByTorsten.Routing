@@ -49,8 +49,8 @@ abstract class AbstractDimensionDecisionMaker implements DimensionDecisionMakerI
     /**
      * @return array
      */
-    protected function getDimensionFromPath() {
-        if ($this->dimensionName !== NULL && preg_match('/(?:;|&)' . $this->dimensionName . '=(.+?)(?:;|\.html|$)/', $this->path, $matches)) {
+    public function getDimensionFromPath() {
+        if ($this->dimensionName !== NULL && preg_match('/(?:;|&)' . $this->dimensionName . '=(.+?)(?:;|&|\.html|$)/', $this->path, $matches)) {
             return explode(',', $matches[1]);
         }
 
@@ -62,11 +62,6 @@ abstract class AbstractDimensionDecisionMaker implements DimensionDecisionMakerI
      * @throws NoSuchDimensionValueException
      */
     public function getDimension() {
-        $dimension = $this->getDimensionFromPath();
-        if ($dimension) {
-            return $dimension;
-        }
-
         $dimension = $this->resolveDimension();
 
         if (is_string($dimension)) {

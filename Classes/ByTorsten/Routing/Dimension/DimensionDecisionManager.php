@@ -4,6 +4,7 @@ namespace ByTorsten\Routing\Dimension;
 use TYPO3\Flow\Annotations as Flow;
 use ByTorsten\Routing\Dimension\Exception\DecisionMakerNotFoundException;
 use TYPO3\Flow\Http\Request;
+use TYPO3\Neos\Domain\Service\ContentDimensionPresetSourceInterface;
 
 /**
  * @Flow\Scope("singleton")
@@ -21,6 +22,12 @@ class DimensionDecisionManager {
     protected $decisionMakers = array();
 
     /**
+     * @Flow\Inject
+     * @var ContentDimensionPresetSourceInterface
+     */
+    protected $contentDimensionPresetSource;
+
+    /**
      * Constructor.
      *
      * @param \TYPO3\Flow\Object\ObjectManagerInterface $objectManager
@@ -33,14 +40,62 @@ class DimensionDecisionManager {
      * @param array $settings
      */
     public function injectSettings(array $settings) {
-        $this->createDimensionDecisionMakers($settings['dimension']['dimensionDecisionMakers']);
+        $decisionMakerClassNames = $settings['dimension']['dimensionDecisionMakers'];
+        if (is_array($decisionMakerClassNames)) {
+            $this->createDimensionDecisionMakers($decisionMakerClassNames);
+        }
     }
 
     /**
+     * @param string $requestPath
      * @return array
      */
-    public function getDecisionMakers() {
-        return $this->decisionMakers;
+    public function handleDimensionsInBackend($requestPath) {
+        $dimensionValues = array();
+
+        /** @var AbstractDimensionDecisionMaker $decisionMaker */
+        foreach($this->decisionMakers as $dimensionName => $decisionMaker) {
+            $decisionMaker->setPath($requestPath);
+            $dimensionValues[$dimensionName] = $decisionMaker->getDimensionFromPath();
+        }
+
+        return $dimensionValues;
+    }
+
+    /**
+     * @param $requestPath
+     * @return array
+     */
+    public function handleNotSetDimensions($requestPath) {
+
+        preg_match(\TYPO3\Neos\Routing\FrontendNodeRoutePartHandler::DIMENSION_REQUEST_PATH_MATCHER, $requestPath, $matches);
+
+        if (isset($matches['dimensionPresetUriSegments'])) {
+
+            $dimensionValues = array();
+
+            $dimensionPresetUriSegments = explode('_', $matches['dimensionPresetUriSegments']);
+            foreach($dimensionPresetUriSegments as $dimensionPresetUriSegment) {
+
+                /** @var AbstractDimensionDecisionMaker $decisionMaker */
+                foreach($this->decisionMakers as $dimensionName => $decisionMaker) {
+                    $preset = $this->contentDimensionPresetSource->findPresetByUriSegment($dimensionName, $dimensionPresetUriSegment);
+
+                    if ($preset === NULL) {
+                        $decisionMaker->setPath($requestPath);
+                        $dimensionValue = $decisionMaker->getDimension();
+
+                        if ($dimensionValue !== NULL) {
+                            $dimensionValues[$dimensionName] = $dimensionValue;
+                        }
+                    }
+                }
+            }
+
+            return $dimensionValues;
+        }
+
+        return array();
     }
 
     /**
@@ -71,22 +126,23 @@ class DimensionDecisionManager {
     }
 
     /**
+     * @param string $dimensionName
      * @param string $requestPath
      * @return array|NULL
+     * @throws DecisionMakerNotFoundException
+     * @throws \TYPO3\Neos\Routing\Exception\NoSuchDimensionValueException
      */
-    public function decide($requestPath) {
-        $dimensions = array();
-        /** @var AbstractDimensionDecisionMaker $decisionMaker */
-        foreach($this->decisionMakers as $dimensionName => $decisionMaker) {
-            $decisionMaker->setPath($requestPath);
-            $dimension = $decisionMaker->getDimension($requestPath);
+    public function decide($dimensionName, $requestPath) {
 
-            if ($dimension !== NULL) {
-                $dimensions[$dimensionName] = $dimension;
-            }
+        if (!isset($this->decisionMakers[$dimensionName])) {
+            throw new DecisionMakerNotFoundException(sprintf('No decision maker found for dimension "%s".', $dimensionName), 1222268009);
         }
 
-        return count($dimensions) > 0 ? $dimensions : NULL;
+        /** @var AbstractDimensionDecisionMaker $decisionMaker */
+        $decisionMaker = $this->decisionMakers[$dimensionName];
+
+        $decisionMaker->setPath($requestPath);
+        return $decisionMaker->getDimension($requestPath);
     }
 
     /**
