@@ -69,10 +69,10 @@ class DimensionDecisionManager {
     public function handleNotSetDimensions($requestPath) {
 
         preg_match(\TYPO3\Neos\Routing\FrontendNodeRoutePartHandler::DIMENSION_REQUEST_PATH_MATCHER, $requestPath, $matches);
+        $dimensionValues = array();
 
         if (isset($matches['dimensionPresetUriSegments'])) {
 
-            $dimensionValues = array();
 
             $dimensionPresetUriSegments = explode('_', $matches['dimensionPresetUriSegments']);
             foreach($dimensionPresetUriSegments as $dimensionPresetUriSegment) {
@@ -92,10 +92,18 @@ class DimensionDecisionManager {
                 }
             }
 
-            return $dimensionValues;
+        } else {
+
+            /** @var AbstractDimensionDecisionMaker $decisionMaker */
+            foreach($this->decisionMakers as $dimensionName => $decisionMaker) {
+                $decisionMaker->setPath($requestPath);
+                $dimensionValues[$dimensionName] = $decisionMaker->getDimension();
+            }
+
         }
 
-        return array();
+
+        return $dimensionValues;
     }
 
     /**
