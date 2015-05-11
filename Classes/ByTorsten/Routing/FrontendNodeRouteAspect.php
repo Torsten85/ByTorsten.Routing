@@ -4,6 +4,7 @@ namespace ByTorsten\Routing;
 use TYPO3\Flow\Annotations as Flow;
 use TYPO3\Flow\AOP\JoinPointInterface as JoinPointInterface;
 use TYPO3\Neos\Routing\Exception\NoSuchDimensionValueException;
+use TYPO3\Neos\Domain\Service\ContentDimensionPresetSourceInterface;
 use ByTorsten\Routing\Dimension\DimensionDecisionManager;
 
 /**
@@ -24,6 +25,12 @@ class FrontendNodeRouteAspect {
     protected $lastRequestedDimensionName;
 
     /**
+     * @Flow\Inject
+     * @var ContentDimensionPresetSourceInterface
+     */
+    protected $contentDimensionPresetSource;
+
+    /**
      * @var array
      */
     protected $handledDimensionNames = array();
@@ -35,11 +42,26 @@ class FrontendNodeRouteAspect {
     protected function stripDimensionFromPath($requestPath) {
         $matches = array();
         preg_match(\TYPO3\Neos\Routing\FrontendNodeRoutePartHandler::DIMENSION_REQUEST_PATH_MATCHER, $requestPath, $matches);
-        return (isset($matches['remainingRequestPath']) ? $matches['remainingRequestPath'] : $requestPath);
+
+        $strippedPath = (isset($matches['remainingRequestPath']) ? $matches['remainingRequestPath'] : $requestPath);
+        if (isset($matches['dimensionPresetUriSegments'])) {
+
+            $dimensionPresetUriSegments = explode('_', $matches['dimensionPresetUriSegments']);
+            $dimensionPresets = $this->contentDimensionPresetSource->getAllPresets();
+
+            foreach($dimensionPresets as $dimensionName => $dimensionPreset) {
+                $uriSegment = array_shift($dimensionPresetUriSegments);
+                $preset = $this->contentDimensionPresetSource->findPresetByUriSegment($dimensionName, $uriSegment);
+                if ($preset === NULL) {
+                    return $requestPath;
+                }
+            }
+        }
+
+        return $strippedPath;
     }
 
     /**
-
      * @param JoinPointInterface $joinPoint
      * @Flow\Around("method(TYPO3\Neos\Routing\FrontendNodeRoutePartHandler->parseDimensionsAndNodePathFromRequestPath())")
      * @return array
@@ -53,7 +75,6 @@ class FrontendNodeRouteAspect {
         $requestPath = $joinPoint->getMethodArgument('requestPath');
 
         if (strpos($requestPath, '@') !== FALSE) {
-
             $strippedRequestPath = $this->stripDimensionFromPath($requestPath);
             if ($strippedRequestPath[0] !== '@') {
                 $joinPoint->setMethodArgument('requestPath', $strippedRequestPath);
